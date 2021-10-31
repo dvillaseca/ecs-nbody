@@ -35,7 +35,7 @@ public class GravitySystem : SystemBase
 	{
 		public NativeQueue<Bounds>.ParallelWriter bounds;
 		[ReadOnly]
-		public NativeArray<Body> position;
+		public NativeArray<Body> bodies;
 		[ReadOnly]
 		public int limit;
 		public void Execute(int start, int end)
@@ -44,7 +44,7 @@ public class GravitySystem : SystemBase
 			float3 max = new float3(-limit, -limit, -limit);
 			for (int i = start; i < end; i++)
 			{
-				GetLimit(ref min, ref max, position[i].position);
+				GetLimit(ref min, ref max, bodies[i].position);
 			}
 			bounds.Enqueue(new Bounds()
 			{
@@ -85,7 +85,7 @@ public class GravitySystem : SystemBase
 	{
 		[DeallocateOnJobCompletion]
 		[ReadOnly]
-		public NativeArray<Body> position;
+		public NativeArray<Body> bodies;
 		[ReadOnly]
 		[DeallocateOnJobCompletion]
 		public NativeArray<Bounds> bounds;
@@ -101,10 +101,10 @@ public class GravitySystem : SystemBase
 			float3 center = (min + max) * 0.5f;
 			nodes[0] = new LinearOctNode(center, sized);
 			current++;
-			int length = position.Length;
+			int length = bodies.Length;
 			for (int i = 0; i < length; i++)
 			{
-				AddBody(0, position[i].position, particleMass);
+				AddBody(0, bodies[i].position, particleMass);
 			}
 		}
 		private void AverageBodys(ref LinearOctNode node, float3 pos, float mass)
@@ -237,17 +237,17 @@ public class GravitySystem : SystemBase
 	protected override void OnUpdate()
 	{
 		var query = GetEntityQuery(typeof(Body));
-		var positions = query.ToComponentDataArrayAsync<Body>(Allocator.TempJob, out JobHandle dep);
+		var bodies = query.ToComponentDataArrayAsync<Body>(Allocator.TempJob, out JobHandle dep);
 		var deps = JobHandle.CombineDependencies(dep, Dependency);
 
 		bounds.Clear();
 		var boundJob = new GetBounds()
 		{
 			limit = 1000,
-			position = positions,
+			bodies = bodies,
 			bounds = bounds.AsParallelWriter()
 		};
-		var boundJobHandler = boundJob.ScheduleBatch(positions.Length, positions.Length / 16, deps);
+		var boundJobHandler = boundJob.ScheduleBatch(bodies.Length, bodies.Length / 16, deps);
 		var finalBound = new NativeArray<Bounds>(1, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 		var finalBoundJob = new FinishGetBounds()
 		{
@@ -260,7 +260,7 @@ public class GravitySystem : SystemBase
 		var nodes = new NativeArray<LinearOctNode>(400000, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 		var generateTreeJob = new GenerateTreeJob()
 		{
-			position = positions,
+			bodies = bodies,
 			nodes = nodes,
 			bounds = finalBound,
 			current = 0,

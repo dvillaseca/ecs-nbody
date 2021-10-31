@@ -8,4 +8,5 @@ public struct Body : IComponentData
 {
 	public float mass;
 	public float3 velocity;
+	public float3 position;
 }

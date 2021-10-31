@@ -13,7 +13,8 @@ public class GravitySystem : SystemBase
 	const float gravityConst = 0.00000667408f;
 	const float particleMass = 10f;
 	private const float EPSILON = 0.00001f;
-	private const float COMPLEXITY = 2f;
+	private const float COMPLEXITY = 5f;
+	private static readonly float3 START_SCALE = new float3(0.05f, 0.05f, 0.05f);
 
 	NativeQueue<Bounds> bounds;
 
@@ -34,7 +35,7 @@ public class GravitySystem : SystemBase
 	{
 		public NativeQueue<Bounds>.ParallelWriter bounds;
 		[ReadOnly]
-		public NativeArray<Translation> position;
+		public NativeArray<Body> position;
 		[ReadOnly]
 		public int limit;
 		public void Execute(int start, int end)
@@ -43,7 +44,7 @@ public class GravitySystem : SystemBase
 			float3 max = new float3(-limit, -limit, -limit);
 			for (int i = start; i < end; i++)
 			{
-				GetLimit(ref min, ref max, position[i].Value);
+				GetLimit(ref min, ref max, position[i].position);
 			}
 			bounds.Enqueue(new Bounds()
 			{
@@ -84,7 +85,7 @@ public class GravitySystem : SystemBase
 	{
 		[DeallocateOnJobCompletion]
 		[ReadOnly]
-		public NativeArray<Translation> position;
+		public NativeArray<Body> position;
 		[ReadOnly]
 		[DeallocateOnJobCompletion]
 		public NativeArray<Bounds> bounds;
@@ -103,7 +104,7 @@ public class GravitySystem : SystemBase
 			int length = position.Length;
 			for (int i = 0; i < length; i++)
 			{
-				AddBody(0, position[i].Value, particleMass);
+				AddBody(0, position[i].position, particleMass);
 			}
 		}
 		private void AverageBodys(ref LinearOctNode node, float3 pos, float mass)
@@ -168,37 +169,10 @@ public class GravitySystem : SystemBase
 			node.type = LinearOctNode.NodeType.Internal;
 		}
 	}
-	//[BurstCompile]
-	//private struct AttractAndMove : IJobParallelForBatch
-	//{
-	//	public NativeArray<Translation> position;
-	//	public NativeArray<Body> bodies;
-	//	[ReadOnly]
-	//	[DeallocateOnJobCompletion]
-	//	public NativeArray<LinearOctNode> nodes;
-	//	[ReadOnly]
-	//	public float deltaTime;
-	//	[ReadOnly]
-	//	public float deltaForce;
-
-	//	public void Execute(int start, int end)
-	//	{
-	//		for (int i = start; i < end; i++)
-	//		{
-	//			var pos = position[i];
-	//			var body = bodies[i];
-
-	//			Interact(0, deltaForce, ref pos, ref body, ref nodes);
-	//			pos.Value += body.velocity * deltaTime;
-	//			position[i] = pos;
-	//			bodies[i] = body;
-	//		}
-	//	}
-	//}
 	[BurstCompile]
 	private struct AttractAndMove : IJobChunk
 	{
-		public ComponentTypeHandle<Translation> positionHandle;
+		public ComponentTypeHandle<LocalToWorld> transformHandle;
 		public ComponentTypeHandle<Body> bodyHandle;
 		[ReadOnly]
 		[DeallocateOnJobCompletion]
@@ -210,44 +184,46 @@ public class GravitySystem : SystemBase
 
 		public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int index)
 		{
-			var position = batchInChunk.GetNativeArray(positionHandle);
+			var transforms = batchInChunk.GetNativeArray(transformHandle);
 			var bodies = batchInChunk.GetNativeArray(bodyHandle);
-			var length = position.Length;
+			var length = transforms.Length;
 			for (int i = 0; i < length; i++)
 			{
-				var pos = position[i];
 				var body = bodies[i];
 
-				Interact(0, deltaForce, ref pos, ref body, ref nodes);
-				pos.Value += body.velocity * deltaTime;
-				position[i] = pos;
+				Interact(0, ref body);
+				body.position += body.velocity * deltaTime;
 				bodies[i] = body;
+
+				var transform = transforms[i];
+				transform.Value = float4x4.TRS(body.position, quaternion.identity, START_SCALE);
+				transforms[i] = transform;
 			}
 		}
-	}
-	private static void Interact(int index, float deltaForce, ref Translation pos, ref Body body, ref NativeArray<LinearOctNode> nodes)
-	{
-		var node = nodes[index];
-		if (node.type == LinearOctNode.NodeType.None)
-			return;
-		var force = node.avgPos - pos.Value;
-		if (math.abs(force.x) < EPSILON && math.abs(force.y) < EPSILON && math.abs(force.z) < EPSILON)
-			return;
-		float mag = math.lengthsq(force);
-		if (node.type == LinearOctNode.NodeType.Internal && node.sSize / mag > COMPLEXITY)
+		private void Interact(int index, ref Body body)
 		{
-			for (int i = node.childsStartIndex; i < node.childsStartIndex + 8; i++)
+			var node = nodes[index];
+			if (node.type == LinearOctNode.NodeType.None)
+				return;
+			var force = node.avgPos - body.position;
+			if (math.abs(force.x) < EPSILON && math.abs(force.y) < EPSILON && math.abs(force.z) < EPSILON)
+				return;
+			float mag = math.lengthsq(force);
+			if (node.type == LinearOctNode.NodeType.Internal && node.sSize / mag > COMPLEXITY)
 			{
-				Interact(i, deltaForce, ref pos, ref body, ref nodes);
+				for (int i = node.childsStartIndex; i < node.childsStartIndex + 8; i++)
+				{
+					Interact(i, ref body);
+				}
+				return;
 			}
-			return;
+			float dist = mag;
+			if (dist < 0.002f)
+				dist = 0.002f;
+			//if node is internal the distance from the avg mass could be really tiny and add an insane speed
+			float strength = deltaForce * node.avgMass / (dist * math.sqrt(mag));
+			body.velocity += force * strength;
 		}
-		float dist = mag;
-		if (dist < 0.002f)
-			dist = 0.002f;
-		//if node is internal the distance from the avg mass could be really tiny and add an insane speed
-		float strength = deltaForce * node.avgMass / (dist * math.sqrt(mag));
-		body.velocity += force * strength;
 	}
 	protected override void OnStartRunning()
 	{
@@ -260,8 +236,8 @@ public class GravitySystem : SystemBase
 	}
 	protected override void OnUpdate()
 	{
-		var query = GetEntityQuery(typeof(Body), typeof(Translation));
-		var positions = query.ToComponentDataArrayAsync<Translation>(Allocator.TempJob, out JobHandle dep);
+		var query = GetEntityQuery(typeof(Body));
+		var positions = query.ToComponentDataArrayAsync<Body>(Allocator.TempJob, out JobHandle dep);
 		var deps = JobHandle.CombineDependencies(dep, Dependency);
 
 		bounds.Clear();
@@ -296,7 +272,7 @@ public class GravitySystem : SystemBase
 		var attractAndMoveJob = new AttractAndMove()
 		{
 			bodyHandle = GetComponentTypeHandle<Body>(false),
-			positionHandle = GetComponentTypeHandle<Translation>(false),
+			transformHandle = GetComponentTypeHandle<LocalToWorld>(false),
 			deltaTime = deltaTime,
 			deltaForce = deltaForce,
 			nodes = nodes

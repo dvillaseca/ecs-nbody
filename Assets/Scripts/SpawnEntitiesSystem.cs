@@ -15,13 +15,13 @@ public class SpawnEntitiesSystem : SystemBase
 		{
 			var newEntity = EntityManager.Instantiate(spawnData.prefab);
 			var random = UnityEngine.Random.insideUnitSphere * spawnData.radius;
-			var pos = new Translation { Value = random };
-			EntityManager.AddComponent<Translation>(newEntity);
-			EntityManager.SetComponentData(newEntity, pos);
+			//var pos = new Translation { Value = random };
+			//EntityManager.AddComponent<Translation>(newEntity);
+			//EntityManager.SetComponentData(newEntity, pos);
 			//	EntityManager.AddComponent<PhysicsVelocity>(newEntity);
 			//EntityManager.SetComponentData(newEntity, new PhysicsVelocity { Linear = UnityEngine.Random.insideUnitSphere });
 			EntityManager.AddComponent<Body>(newEntity);
-			EntityManager.SetComponentData(newEntity, new Body { velocity = UnityEngine.Random.insideUnitSphere, mass = 1 });
+			EntityManager.SetComponentData(newEntity, new Body { velocity = UnityEngine.Random.insideUnitSphere, mass = 1, position = random });
 		}
 	}
 	protected override void OnUpdate()

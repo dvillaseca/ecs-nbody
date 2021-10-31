@@ -1,12 +1,21 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Entities;
 
-[GenerateAuthoringComponent]
-public struct EntitySpawnData : IComponentData
+namespace nbody
 {
-	public Entity prefab;
-	public int count;
-	public float radius;
+	[GenerateAuthoringComponent]
+	public struct EntitySpawnData : IComponentData
+	{
+		public enum EmitOption
+		{
+			inOrbit,
+			noVel,
+			explosion
+		}
+		public EmitOption option;
+		public Entity prefab;
+		public int count;
+		public float radius;
+		public Vector2 massRange;
+	}
 }

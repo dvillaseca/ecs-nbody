@@ -1,12 +1,13 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+
 using Unity.Entities;
 using Unity.Mathematics;
 
-public struct Body : IComponentData
+namespace nbody
 {
-	public float mass;
-	public float3 velocity;
-	public float3 position;
+	public struct Body : IComponentData
+	{
+		public float mass;
+		public float3 velocity;
+		public float3 position;
+	}
 }

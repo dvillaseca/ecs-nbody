@@ -3,6 +3,7 @@ using Unity.Transforms;
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Jobs;
+using UnityEngine;
 
 namespace nbody
 {
@@ -19,11 +20,29 @@ namespace nbody
 			for (int i = 0; i < spawnData.count; i++)
 			{
 				var newEntity = EntityManager.Instantiate(spawnData.prefab);
+				EntityManager.AddComponent<Body>(newEntity);
+
 				float mass = UnityEngine.Random.Range(spawnData.massRange.y, spawnData.massRange.x);
 				var pos = UnityEngine.Random.insideUnitSphere;
-				pos *= explosionDiameter;
-				EntityManager.AddComponent<Body>(newEntity);
-				EntityManager.SetComponentData(newEntity, new Body { velocity = pos * spawnData.radius, mass = mass, position = pos });
+				Body body = default;
+				switch (spawnData.option)
+				{
+					case EntitySpawnData.EmitOption.explosion:
+						pos *= explosionDiameter;
+						body = new Body { velocity = pos * spawnData.explosionForce, mass = mass, position = pos };
+						break;
+					case EntitySpawnData.EmitOption.disk:
+
+						pos.y *= spawnData.diskRadius * 0.5f;
+						pos.x *= spawnData.diskRadius;
+						pos.z *= spawnData.diskRadius;
+
+						Vector3 v = Vector3.Cross(pos.normalized, Vector3.up);
+						v = v.normalized * math.sqrt(Const.GRAVITY * spawnData.massRange.y / pos.magnitude) * spawnData.diskSpeed;
+						body = new Body { velocity = v, mass = mass, position = pos };
+						break;
+				}
+				EntityManager.SetComponentData(newEntity, body);
 			}
 		}
 		protected override void OnStopRunning()

@@ -8,14 +8,15 @@ namespace nbody
 	{
 		public enum EmitOption
 		{
-			inOrbit,
-			noVel,
+			disk,
 			explosion
 		}
 		public EmitOption option;
 		public Entity prefab;
 		public int count;
-		public float radius;
+		public float explosionForce;
+		public float diskRadius;
+		public float diskSpeed;
 		public Vector2 massRange;
 	}
 }

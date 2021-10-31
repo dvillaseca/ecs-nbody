@@ -169,7 +169,9 @@ MonoBehaviour:
   option: 0
   prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
   count: 50000
-  radius: 0.87
+  explosionForce: 0.87
+  diskRadius: 10
+  diskSpeed: 100
   massRange: {x: 5, y: 15}
 --- !u!4 &406807916
 Transform:

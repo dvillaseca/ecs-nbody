@@ -33,8 +33,7 @@ namespace nbody
 				bodies[i] = body;
 
 				var transform = transforms[i];
-				var size = Utils.MassToSize(body.mass);
-				transform.Value = float4x4.TRS(body.position, quaternion.identity, new float3(size));
+				transform.Value = float4x4.TRS(body.position, quaternion.identity, body.size);
 				transforms[i] = transform;
 			}
 		}
@@ -46,8 +45,8 @@ namespace nbody
 			var force = node.avgPos - body.position;
 			if (math.abs(force.x) < Const.EPSILON && math.abs(force.y) < Const.EPSILON && math.abs(force.z) < Const.EPSILON)
 				return;
-			float mag = math.lengthsq(force);
-			if (node.type == LinearOctNode.NodeType.Internal && node.sSize / mag > Const.COMPLEXITY)
+			float sqrDist = math.lengthsq(force);
+			if (node.type == LinearOctNode.NodeType.Internal && node.sSize / sqrDist > Const.COMPLEXITY)
 			{
 				for (int i = node.childsStartIndex; i < node.childsStartIndex + 8; i++)
 				{
@@ -55,11 +54,31 @@ namespace nbody
 				}
 				return;
 			}
-			float dist = mag;
-			if (dist < 0.002f)
-				dist = 0.002f;
+			float dist = math.sqrt(sqrDist);
+
+			if (sqrDist < 0.002f)
+				sqrDist = 0.002f;
+			//if (node.type == LinearOctNode.NodeType.External)
+			//{
+			//	float collisionLimit = (node.bodySize + body.size) * 0.5f;
+			//	if (dist < collisionLimit)
+			//	{
+			//		if (body.mass > node.avgMass)
+			//		{
+			//			float sum = 1f / (node.avgMass + body.mass);
+			//			body.velocity = node.bodyVelocity * (node.avgMass * sum) + body.velocity * (body.mass * sum);
+			//			body.mass += node.avgMass;
+			//			body.size = Utils.MassToSize(body.mass);
+			//		}
+			//		else
+			//		{
+			//			body.mass = 0f;
+			//		}
+			//		return;
+			//	}
+			//}
 			//if node is internal the distance from the avg mass could be really tiny and add an insane speed
-			float strength = deltaForce * node.avgMass / (dist * math.sqrt(mag));
+			float strength = deltaForce * node.avgMass / (sqrDist * dist);
 			body.velocity += force * strength;
 		}
 	}

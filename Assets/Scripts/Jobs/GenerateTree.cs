@@ -29,7 +29,7 @@ namespace nbody
 			int length = bodies.Length;
 			for (int i = 0; i < length; i++)
 			{
-				AddBody(0, bodies[i].position, bodies[i].mass);
+				AddBody(0, bodies[i].position, bodies[i].mass, bodies[i].velocity);
 			}
 		}
 		private void AverageBodys(ref LinearOctNode node, float3 pos, float mass)
@@ -38,7 +38,7 @@ namespace nbody
 			node.avgPos = (node.avgPos * node.avgMass + pos * mass) * (1f / m);
 			node.avgMass = m;
 		}
-		private void AddBody(int nodeIndex, float3 pos, float mass)
+		private void AddBody(int nodeIndex, float3 pos, float mass, float3 velocity)
 		{
 			var node = nodes[nodeIndex];
 			int index;
@@ -46,7 +46,7 @@ namespace nbody
 			{
 				AverageBodys(ref node, pos, mass);
 				index = GetIndex(ref node, pos);
-				AddBody(index, pos, mass);
+				AddBody(index, pos, mass, velocity);
 				nodes[nodeIndex] = node;
 				return;
 			}
@@ -54,17 +54,19 @@ namespace nbody
 			{
 				AverageBodys(ref node, pos, mass);
 				node.type = LinearOctNode.NodeType.External;
+				node.bodySize = Utils.MassToSize(mass);
+				node.bodyVelocity = velocity;
 				nodes[nodeIndex] = node;
 				return;
 			}
 			Split(ref node);
 
 			index = GetIndex(ref node, node.avgPos);
-			AddBody(index, node.avgPos, node.avgMass);
+			AddBody(index, node.avgPos, node.avgMass, velocity);
 
 			AverageBodys(ref node, pos, mass);
 			index = GetIndex(ref node, pos);
-			AddBody(index, pos, mass);
+			AddBody(index, pos, mass, velocity);
 
 			nodes[nodeIndex] = node;
 		}

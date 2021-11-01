@@ -166,11 +166,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4bc87b5002b700449144db84de20f12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  option: 0
+  option: 1
   prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
-  count: 50000
+  count: 100000
   explosionForce: 0.87
-  diskRadius: 10
+  diskRadius: 50
   diskSpeed: 100
   massRange: {x: 5, y: 15}
 --- !u!4 &406807916

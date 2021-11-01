@@ -17,6 +17,8 @@ namespace nbody
 		public float3 center;
 		public float size;
 		public float sSize;
+		public float bodySize;
+		public float3 bodyVelocity;
 
 		public NodeType type;
 		public int childsStartIndex;
@@ -30,6 +32,8 @@ namespace nbody
 			avgPos = float3.zero;
 			childsStartIndex = 0;
 			avgMass = 0f;
+			bodySize = 0;
+			bodyVelocity = default;
 		}
 	}
 }

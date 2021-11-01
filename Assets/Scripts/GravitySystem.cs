@@ -10,7 +10,8 @@ namespace nbody
 	public class GravitySystem : SystemBase
 	{
 		private NativeQueue<Bounds> bounds;
-		
+
+		EndSimulationEntityCommandBufferSystem endSimulationEcbSystem;
 		protected override void OnStartRunning()
 		{
 			bounds = new NativeQueue<Bounds>(Allocator.Persistent);
@@ -23,13 +24,14 @@ namespace nbody
 				EntityManager.AddComponent<Body>(newEntity);
 
 				float mass = UnityEngine.Random.Range(spawnData.massRange.y, spawnData.massRange.x);
+				var size = Utils.MassToSize(mass);
 				var pos = UnityEngine.Random.insideUnitSphere;
 				Body body = default;
 				switch (spawnData.option)
 				{
 					case EntitySpawnData.EmitOption.explosion:
 						pos *= explosionDiameter;
-						body = new Body { velocity = pos * spawnData.explosionForce, mass = mass, position = pos };
+						body = new Body { velocity = pos * spawnData.explosionForce, mass = mass, position = pos, size = size };
 						break;
 					case EntitySpawnData.EmitOption.disk:
 
@@ -39,11 +41,12 @@ namespace nbody
 
 						Vector3 v = Vector3.Cross(pos.normalized, Vector3.up);
 						v = v.normalized * math.sqrt(Const.GRAVITY * spawnData.massRange.y / pos.magnitude) * spawnData.diskSpeed;
-						body = new Body { velocity = v, mass = mass, position = pos };
+						body = new Body { velocity = v, mass = mass, position = pos, size = size };
 						break;
 				}
 				EntityManager.SetComponentData(newEntity, body);
 			}
+			endSimulationEcbSystem = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
 		}
 		protected override void OnStopRunning()
 		{
@@ -93,7 +96,19 @@ namespace nbody
 				deltaForce = deltaForce,
 				nodes = nodes
 			};
-			Dependency = attractAndMoveJob.ScheduleParallel(query, generateTreeHandle);
+			var attractAndMoveHandle = attractAndMoveJob.ScheduleParallel(query, generateTreeHandle);
+
+			var ecb = endSimulationEcbSystem.CreateCommandBuffer().AsParallelWriter();
+			Dependency = Entities.ForEach((Entity entity, int entityInQueryIndex, ref Body body) =>
+			{
+				if (body.mass <= 0)
+				{
+					ecb.DestroyEntity(entityInQueryIndex, entity);
+				}
+			}).ScheduleParallel(attractAndMoveHandle);
+
+
+			endSimulationEcbSystem.AddJobHandleForProducer(Dependency);
 		}
 	}
 }

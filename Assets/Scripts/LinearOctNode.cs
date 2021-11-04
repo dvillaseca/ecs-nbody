@@ -4,7 +4,7 @@ namespace nbody
 {
 	public struct LinearOctNode
 	{
-		public enum NodeType : byte
+		public enum NodeType : int
 		{
 			None = 0,
 			External = 1,
@@ -18,7 +18,7 @@ namespace nbody
 		public float size;
 		public float sSize;
 		public float bodySize;
-		public float3 bodyVelocity;
+		//public float3 bodyVelocity;
 
 		public NodeType type;
 		public int childsStartIndex;
@@ -33,7 +33,7 @@ namespace nbody
 			childsStartIndex = 0;
 			avgMass = 0f;
 			bodySize = 0;
-			bodyVelocity = default;
+			//bodyVelocity = default;
 		}
 	}
 }

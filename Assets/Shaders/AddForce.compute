@@ -1,0 +1,47 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+struct Body 
+{
+    float size;
+    float mass;
+    float3 velocity;
+    float3 position;
+};
+RWStructuredBuffer<Body> bodies;
+// struct LinearOctNode
+// {
+    //     float3 avgPos;
+    //     float avgMass;
+    //     float3 center;
+    //     float size;
+    //     float sSize;
+    //     float bodySize;
+    //     float3 bodyVelocity;
+    //     int type;
+    //     int childsStartIndex;
+// };
+// RWStructuredBuffer<LinearOctNode> nodes;
+#define GRAVITY 0.0000667408f
+int bodyCount;
+float deltaTime;
+
+[numthreads(256,1,1)] 
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float deltaForce = deltaTime * GRAVITY;
+    float3 acceleration =  float3(0.0f, 0.0f, 0.0f);
+    for (uint i = 0; i < bodyCount; i++) {
+        float3 force = bodies[i].position - bodies[id.x].position;
+        float len = length(force) + 1e-10;
+        float sqrLen = len * len;
+        sqrLen = max(sqrLen, 0.002f);
+        float3 finalForce = force * (deltaForce / (sqrLen * len));
+        if(id.x != i)         
+           acceleration += finalForce;
+    }
+    bodies[id.x].position += (bodies[id.x].velocity + acceleration * 0.5f) * deltaTime;
+    bodies[id.x].velocity += acceleration;
+}

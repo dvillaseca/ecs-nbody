@@ -1,0 +1,89 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSApplyForces
+#pragma kernel CSGenerateTree
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+#define EPSILON 0.00001f
+#define GRAVITY 0.00000667408f
+#define COMPLEXITY 2.0f
+struct Body 
+{
+    float size;
+    float mass;
+    float3 velocity;
+    float3 position;
+};
+struct LinearOctNode
+{
+    float3 avgPos;
+    float avgMass;
+    float3 center;
+    float size;
+    float sSize;
+    float bodySize;
+    // float3 bodyVelocity;
+    int type;
+    int childsStartIndex;
+};
+RWStructuredBuffer<LinearOctNode> nodes;
+RWStructuredBuffer<Body> bodies;
+float deltaTime;
+int treeCount;
+int treeSize;
+
+float3 Interact(int startIndex, float3 position)
+{
+    float deltaForce = GRAVITY * deltaTime;
+    float3 addedVelocity = float3(0,0,0);
+    int stack[200];
+    int count = 1;
+    stack[0] = startIndex;
+    while(count > 0) {
+        int index = stack[--count];
+        LinearOctNode node = nodes[index];
+        if (node.type == 0) {
+            continue;
+        }
+        float3 force = node.avgPos - position;
+        float dist = length(force);
+        if (dist < EPSILON)
+            continue;
+        float sqrDist = dist * dist;
+        if (node.type == 2 && node.sSize / sqrDist > COMPLEXITY)
+        {
+            for (int i = node.childsStartIndex; i < node.childsStartIndex + 8; i++)
+            {
+                stack[count++] = i;
+            }
+            continue;
+        }
+        sqrDist = max(sqrDist, 0.002);
+        float strength = deltaForce * node.avgMass / (sqrDist * dist);
+        addedVelocity += force * strength;
+    }
+    return addedVelocity;
+}
+[numthreads(64,1,1)]
+void CSApplyForces (uint3 id : SV_DispatchThreadID)
+{
+    Body body = bodies[id.x];
+    float3 addedVelocity = float3(0,0,0);
+    for(int i = 0; i < treeCount; i++) {
+        addedVelocity += Interact(i * treeSize, body.position);
+    }
+    body.position += (body.velocity + addedVelocity * 0.5f) * deltaTime;
+    body.velocity += addedVelocity;
+    bodies[id.x] = body;
+}
+[numthreads(4,1,1)]
+void CSGenerateTree (uint3 id : SV_DispatchThreadID)
+{
+    Body body = bodies[id.x];
+    float3 addedVelocity = float3(0,0,0);
+    for(int i = 0; i < treeCount; i++) {
+        addedVelocity += Interact(i * treeSize, body.position);
+    }
+    body.position += (body.velocity + addedVelocity * 0.5f) * deltaTime;
+    body.velocity += addedVelocity;
+    bodies[id.x] = body;
+}

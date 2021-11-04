@@ -55,7 +55,7 @@ namespace nbody
 				AverageBodys(ref node, pos, mass);
 				node.type = LinearOctNode.NodeType.External;
 				node.bodySize = Utils.MassToSize(mass);
-				node.bodyVelocity = velocity;
+				//node.bodyVelocity = velocity;
 				nodes[nodeIndex] = node;
 				return;
 			}

@@ -1,0 +1,211 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSApplyForces
+#pragma kernel CSGenerateTree
+#pragma kernel CSWipeTree
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+#define EPSILON 0.00001f
+#define GRAVITY 0.00000667408f
+#define COMPLEXITY 2.0f
+struct Body 
+{
+    float size;
+    float mass;
+    float3 velocity;
+    float3 position;
+};
+struct LinearOctNode
+{
+    float3 avgPos;
+    float avgMass;
+    float3 center;
+    float size;
+    float sSize;
+    float bodySize;
+    // float3 bodyVelocity;
+    int type;
+    int childsStartIndex;
+};
+struct PendingBody 
+{
+    int index;
+    float3 pos;
+    float mass;
+};
+
+RWStructuredBuffer<LinearOctNode> nodes;
+RWStructuredBuffer<Body> bodies;
+float deltaTime;
+int treeCount;
+int treeSize;
+
+float3 Interact(int startIndex, float3 position)
+{
+    float deltaForce = GRAVITY * deltaTime;
+    float3 addedVelocity = float3(0,0,0);
+    int stack[200];
+    int count = 1;
+    stack[0] = startIndex;
+    while(count > 0) {
+        int index = stack[--count];
+        LinearOctNode node = nodes[index];
+        if (node.type == 0) {
+            continue;
+        }
+        float3 force = node.avgPos - position;
+        float dist = length(force);
+        if (dist < EPSILON)
+        continue;
+        float sqrDist = dist * dist;
+        if (node.type == 2 && node.sSize / sqrDist > COMPLEXITY)
+        {
+            for (int i = node.childsStartIndex; i < node.childsStartIndex + 8; i++)
+            {
+                stack[count++] = i;
+            }
+            continue;
+        }
+        sqrDist = max(sqrDist, 0.002);
+        float strength = deltaForce * node.avgMass / (sqrDist * dist);
+        addedVelocity += force * strength;
+    }
+    return addedVelocity;
+}
+[numthreads(64,1,1)]
+void CSApplyForces (uint3 id : SV_DispatchThreadID)
+{
+    Body body = bodies[id.x];
+    float3 addedVelocity = float3(0,0,0);
+    for(int i = 0; i < treeCount; i++) {
+        addedVelocity += Interact(i * treeSize, body.position);
+    }
+    body.position += (body.velocity + addedVelocity * 0.5f) * deltaTime;
+    body.velocity += addedVelocity;
+    bodies[id.x] = body;
+}
+
+
+float4 boundsMin;
+float4 boundsMax;
+RWStructuredBuffer<int> currentNodeIndex;
+int bodyCount;
+
+void AverageBodys(int nodeIndex, float3 pos, float mass)
+{
+    LinearOctNode node = nodes[nodeIndex];
+    float m = mass + node.avgMass;
+    node.avgPos = (node.avgPos * node.avgMass + pos * mass) * (1.0f / m);
+    node.avgMass = m;
+    nodes[nodeIndex] = node;
+}
+int GetIndex(int nodeIndex, float3 pos)
+{
+    LinearOctNode node = nodes[nodeIndex];
+    int index = 0;
+    if (pos.y > node.center.y)
+    index |= 4;
+    if (pos.x > node.center.x)
+    index |= 2;
+    if (pos.z > node.center.z)
+    index |= 1;
+    return index + node.childsStartIndex;
+}
+LinearOctNode CreateNode(float3 center, float size) 
+{
+    LinearOctNode node;
+    node.center = center;
+    node.size = size;
+    node.sSize = size * size;
+    node.type = 0;
+    node.avgPos = float3(0,0,0);
+    node.childsStartIndex = 0;
+    node.avgMass = 0.0f;
+    node.bodySize = 0;
+    return node;
+}
+void SplitNode(int nodeIndex, int treeIndex)
+{
+    LinearOctNode node = nodes[nodeIndex];
+    float newSize = node.size * 0.5f;
+    node.childsStartIndex = currentNodeIndex[treeIndex];
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x - newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z - newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x - newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z + newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x + newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z - newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x + newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z + newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x - newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z - newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x - newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z + newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x + newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z - newSize * 0.5f), newSize);
+    nodes[currentNodeIndex[treeIndex]++] = CreateNode(float3(node.center.x + newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z + newSize * 0.5f), newSize);
+    node.type = 2;
+    nodes[nodeIndex] = node;
+}
+PendingBody CreatePendingBody(int index, float3 pos, float mass) 
+{
+    PendingBody pending;
+    pending.index = index;
+    pending.pos = pos;
+    pending.mass = mass;
+    return pending;
+}
+void AddBody(int nodeIndex, float3 pos, float mass,  int treeIndex)
+{
+    PendingBody stack[50];
+    
+    int count = 1;
+    stack[0] = CreatePendingBody(nodeIndex, pos, mass);
+    while(count > 0) {        
+        PendingBody pending = stack[--count];        
+        LinearOctNode node = nodes[pending.index];
+        int index;
+        if (node.type == 2)
+        {
+            AverageBodys(pending.index, pending.pos, pending.mass);
+            index = GetIndex(pending.index, pending.pos);
+            stack[count++] = CreatePendingBody(index, pending.pos, pending.mass);
+            nodes[pending.index] = node;
+            continue;
+        }
+        if (node.type == 0)
+        {
+            AverageBodys(pending.index, pending.pos, pending.mass);
+            node.type = 1;
+            //  node.bodySize = Utils.MassToSize(mass);
+            //node.bodyVelocity = velocity;
+            nodes[pending.index] = node;
+            continue;
+        }
+        SplitNode(pending.index, treeIndex);
+
+        index = GetIndex(pending.index, node.avgPos);
+        stack[count++] = CreatePendingBody(index, node.avgPos, node.avgMass);
+
+        AverageBodys(pending.index, pending.pos, pending.mass);
+        index = GetIndex(pending.index, pending.pos);
+        stack[count++] = CreatePendingBody(index, pending.pos, pending.mass);
+
+        nodes[nodeIndex] = node;
+    }
+}
+
+[numthreads(4,1,1)]
+void CSGenerateTree (uint3 id : SV_DispatchThreadID)
+{
+    int rootNodeIndex = id.x * treeSize;
+    currentNodeIndex[id.x] = rootNodeIndex + 1;
+    int bodiesInBatch = (int)ceil(1.0 * bodyCount / treeCount);
+    int bodyStartIndex = bodiesInBatch * id.x;
+    int bodyEndIndex = min(bodiesInBatch * (id.x + 1), bodyCount);    
+    
+    float sized = max(max((boundsMax.x - boundsMin.x), (boundsMax.y - boundsMin.y)), boundsMax.z - boundsMin.z);
+    float3 center = (boundsMin + boundsMax) * 0.5f;
+    nodes[rootNodeIndex] = CreateNode(center, sized);
+    for (int i = bodyStartIndex; i < bodyEndIndex; i++)
+    {
+        AddBody(rootNodeIndex, bodies[i].position, bodies[i].mass, id.x);
+    }
+}
+[numthreads(64,1,1)]
+void CSWipeTree (uint3 id : SV_DispatchThreadID)
+{
+    nodes[id.x] = CreateNode(float3(0,0,0), 0);
+}

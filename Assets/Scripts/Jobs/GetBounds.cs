@@ -18,10 +18,11 @@ namespace nbody
 		public NativeArray<Body> bodies;
 		[ReadOnly]
 		public int limit;
-		public void Execute(int start, int end)
+		public void Execute(int start, int count)
 		{
 			float3 min = new float3(limit, limit, limit);
 			float3 max = new float3(-limit, -limit, -limit);
+			int end = math.min(start + count, bodies.Length);
 			for (int i = start; i < end; i++)
 			{
 				Utils.GetLimit(ref min, ref max, bodies[i].position);

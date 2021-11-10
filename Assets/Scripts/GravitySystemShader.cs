@@ -7,14 +7,19 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace nbody
 {
 	public class GravitySystemShader : SystemBase
 	{
 		private NativeArray<Body> bodies;
+		private NativeArray<LinearOctNode> nodes;
 		private ComputeBuffer bodiesBuffer;
 		private CancellationTokenSource cancelToken;
+		private NativeQueue<Bounds> bounds;
+		private bool updated = false;
+
 		protected override void OnStartRunning()
 		{
 			var spawnData = GetSingleton<EntitySpawnData>();
@@ -53,147 +58,35 @@ namespace nbody
 			bodiesBuffer.SetData(bodies);
 			cancelToken = new CancellationTokenSource();
 			bounds = new NativeQueue<Bounds>(Allocator.Persistent);
+			nodes = new NativeArray<LinearOctNode>(Const.TREE_SIZE * Const.TREE_COUNT, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 			_ = Update(cancelToken.Token);
 		}
 		protected override void OnStopRunning()
 		{
 			cancelToken.Cancel();
+			DisposeAll();
+		}
+		private void DisposeAll()
+		{
 			if (bodies.IsCreated)
 				bodies.Dispose();
 			if (bounds.IsCreated)
 				bounds.Dispose();
+			if (nodes.IsCreated)
+				nodes.Dispose();
 			bodiesBuffer.Release();
 		}
 
-		[Unity.Burst.BurstCompile]
-		public struct AttractAndMove : IJobChunk
-		{
-			public ComponentTypeHandle<LocalToWorld> transformHandle;
-			[ReadOnly]
-			public NativeArray<Body> bd;
-			[ReadOnly]
-			public float deltaTime;
-
-			public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int index)
-			{
-				var transforms = batchInChunk.GetNativeArray(transformHandle);
-				var length = transforms.Length;
-				for (int i = 0; i < length; i++)
-				{
-					var body = bd[index + i];
-					var transform = transforms[i];
-					transform.Value = float4x4.TRS(body.position, quaternion.identity, 0.05f);
-					transforms[i] = transform;
-				}
-			}
-		}
-		[Unity.Burst.BurstCompile]
-		public struct GenerateTree : IJobParallelForBatch
-		{
-			[ReadOnly]
-			public NativeArray<Body> bodies;
-			[DeallocateOnJobCompletion]
-			[ReadOnly]
-			public NativeArray<Bounds> bounds;
-
-			public NativeArray<LinearOctNode> nodes;
-
-			[ReadOnly]
-			public int batchesCount;
-			[ReadOnly]
-			public int treeSize;
-
-			public void Execute(int startIndex, int count)
-			{
-				float3 min = bounds[0].min;
-				float3 max = bounds[0].max;
-				float sized = math.max(math.max((max.x - min.x), (max.y - min.y)), max.z - min.z);
-				float3 center = (min + max) * 0.5f;
-				int rootNodeIndex = startIndex;
-				nodes[rootNodeIndex] = new LinearOctNode(center, sized);
-				int current = rootNodeIndex + 1;
-				int bodyCount = (int)math.ceil(bodies.Length / batchesCount);
-
-				int batchIndex = (int)math.floor(startIndex / treeSize);
-				int bodyStartIndex = bodyCount * batchIndex;
-				int bodyEndIndex = math.min(bodyCount * (batchIndex + 1), bodies.Length);
-				for (int i = bodyStartIndex; i < bodyEndIndex; i++)
-				{
-					AddBody(rootNodeIndex, bodies[i].position, bodies[i].mass, bodies[i].velocity, ref current);
-				}
-			}
-			private void AverageBodys(ref LinearOctNode node, float3 pos, float mass)
-			{
-				float m = mass + node.avgMass;
-				node.avgPos = (node.avgPos * node.avgMass + pos * mass) * (1f / m);
-				node.avgMass = m;
-			}
-			private void AddBody(int nodeIndex, float3 pos, float mass, float3 velocity, ref int currentIndex)
-			{
-				var node = nodes[nodeIndex];
-				int index;
-				if (node.type == LinearOctNode.NodeType.Internal)
-				{
-					AverageBodys(ref node, pos, mass);
-					index = GetIndex(ref node, pos);
-					AddBody(index, pos, mass, velocity, ref currentIndex);
-					nodes[nodeIndex] = node;
-					return;
-				}
-				if (node.type == LinearOctNode.NodeType.None)
-				{
-					AverageBodys(ref node, pos, mass);
-					node.type = LinearOctNode.NodeType.External;
-					node.bodySize = Utils.MassToSize(mass);
-					//node.bodyVelocity = velocity;
-					nodes[nodeIndex] = node;
-					return;
-				}
-				Split(ref node, ref currentIndex);
-
-				index = GetIndex(ref node, node.avgPos);
-				AddBody(index, node.avgPos, node.avgMass, velocity, ref currentIndex);
-
-				AverageBodys(ref node, pos, mass);
-				index = GetIndex(ref node, pos);
-				AddBody(index, pos, mass, velocity, ref currentIndex);
-
-				nodes[nodeIndex] = node;
-			}
-			private int GetIndex(ref LinearOctNode node, float3 pos)
-			{
-				int index = 0;
-				if (pos.y > node.center.y)
-					index |= 4;
-				if (pos.x > node.center.x)
-					index |= 2;
-				if (pos.z > node.center.z)
-					index |= 1;
-				return index + node.childsStartIndex;
-			}
-			private void Split(ref LinearOctNode node, ref int current)
-			{
-				float newSize = node.size * 0.5f;
-				node.childsStartIndex = current;
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x - newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z - newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x - newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z + newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x + newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z - newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x + newSize * 0.5f, node.center.y - newSize * 0.5f, node.center.z + newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x - newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z - newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x - newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z + newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x + newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z - newSize * 0.5f), newSize));
-				nodes[current++] = (new LinearOctNode(new float3(node.center.x + newSize * 0.5f, node.center.y + newSize * 0.5f, node.center.z + newSize * 0.5f), newSize));
-				node.type = LinearOctNode.NodeType.Internal;
-			}
-		}
-		private NativeQueue<Bounds> bounds;
-		const int treeCount = 4;
-		const int treeSize = 300000;
-		private bool updated = false;
+		int sampleCount = 0;
+		long treeMs = 0l;
+		long shaderMs = 0l;
+		long copyMs = 0l;
+		System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
 		private async Task Update(CancellationToken token)
 		{
 			while (!token.IsCancellationRequested)
 			{
+				watch.Start();
 				bounds.Clear();
 				var boundJob = new GetBounds()
 				{
@@ -202,7 +95,7 @@ namespace nbody
 					bounds = bounds.AsParallelWriter()
 				};
 				var boundJobHandler = boundJob.ScheduleBatch(bodies.Length, bodies.Length / 16);
-				var finalBound = new NativeArray<Bounds>(1, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+				var finalBound = new NativeArray<Bounds>(1, Allocator.Persistent, NativeArrayOptions.ClearMemory);
 				var finalBoundJob = new FinishGetBounds()
 				{
 					bounds = bounds,
@@ -211,31 +104,97 @@ namespace nbody
 				};
 				var finalBoundHandle = finalBoundJob.Schedule(boundJobHandler);
 
-				var nodes = new NativeArray<LinearOctNode>(treeCount * treeSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-				var generateTreeJob = new GenerateTree()
+				var bLists = new NativeList<Body>[8];
+				for (int i = 0; i < 8; i++)
+				{
+					bLists[i] = new NativeList<Body>(bodies.Length / 2, Allocator.Persistent);
+				}
+				var sortJob = new SortBodies()
 				{
 					bodies = bodies,
-					nodes = nodes,
 					bounds = finalBound,
-					batchesCount = treeCount,
-					treeSize = treeSize
+					b0 = bLists[0].AsParallelWriter(),
+					b1 = bLists[1].AsParallelWriter(),
+					b2 = bLists[2].AsParallelWriter(),
+					b3 = bLists[3].AsParallelWriter(),
+					b4 = bLists[4].AsParallelWriter(),
+					b5 = bLists[5].AsParallelWriter(),
+					b6 = bLists[6].AsParallelWriter(),
+					b7 = bLists[7].AsParallelWriter()
 				};
-				var generateTreeHandle = generateTreeJob.ScheduleBatch(nodes.Length, treeSize, finalBoundHandle);
+				var sortJobHandler = sortJob.ScheduleBatch(bodies.Length, bodies.Length / 16, finalBoundHandle);
+				var wipeNodesJob = new WipeNodes()
+				{
+					nodes = nodes
+				};
+				var wipeNodesHandle = wipeNodesJob.ScheduleBatch(nodes.Length, nodes.Length / 16, sortJobHandler);
+				wipeNodesHandle.Complete();
 
-				generateTreeHandle.Complete();
-				//Debug.Log("completed: " + generateTreeHandle.IsCompleted);
+				var treeJobs = new NativeArray<JobHandle>(8, Allocator.Persistent);
+
+				for (int i = 0; i < 8; i++)
+				{
+					var generateTreeJob = new GenerateTreePart()
+					{
+						bodies = bLists[i].AsArray(),
+						nodes = nodes,
+						bounds = finalBound,
+						rootIndex = i + 1
+					};
+					treeJobs[i] = generateTreeJob.Schedule();
+				}
+				JobHandle.CombineDependencies(treeJobs).Complete();
+				treeJobs.Dispose();
+				for (int i = 0; i < 8; i++)
+					bLists[i].Dispose();
+
+				float3 min = finalBound[0].min;
+				float3 max = finalBound[0].max;
+				float newSize = math.max(math.max((max.x - min.x), (max.y - min.y)), max.z - min.z);
+				float3 center = (min + max) * 0.5f;
+
+				var rootNode = new LinearOctNode(center, newSize);
+				rootNode.type = LinearOctNode.NodeType.Internal;
+				rootNode.childsStartIndex = 1;
+				rootNode.avgPos = float3.zero;
+				for (int i = 1; i < 9; i++)
+				{
+					float m = nodes[i].avgMass + rootNode.avgMass;
+					rootNode.avgPos = (rootNode.avgPos * rootNode.avgMass + nodes[i].avgPos * nodes[i].avgMass) * (1f / m);
+					rootNode.avgMass = m;
+				}
+				nodes[0] = rootNode;
+				finalBound.Dispose();
+
+				watch.Stop();
+				treeMs += watch.ElapsedMilliseconds;
+				watch.Reset();
+
 				var deltaTime = Time.DeltaTime;
-				var result = await RunComputeShader(nodes, deltaTime);
+				var result = await RunComputeShader(deltaTime);
 				bodies.Dispose();
 				bodies = new NativeArray<Body>(result, Allocator.Persistent);
 				result.Dispose();
-				nodes.Dispose();
 				updated = true;
+
+				sampleCount++;
+				if (sampleCount == 10)
+				{
+					Debug.Log("tree time: " + treeMs * .1);
+					Debug.Log("copy time: " + copyMs * .1);
+					Debug.Log("shader time: " + shaderMs * .1);
+					treeMs = 0;
+					shaderMs = 0;
+					copyMs = 0;
+					sampleCount = 0;
+				}
 				await Task.Yield();
 			}
+			DisposeAll();
 		}
-		private async Task<NativeArray<Body>> RunComputeShader(NativeArray<LinearOctNode> nodes, float dt)
+		private async Task<NativeArray<Body>> RunComputeShader(float dt)
 		{
+			watch.Start();
 			var computeShader = ComputeShaderTest.Instance.computeShaderTree;
 
 			var kernelIndex = computeShader.FindKernel("CSApplyForces");
@@ -246,10 +205,14 @@ namespace nbody
 			computeShader.SetBuffer(kernelIndex, "nodes", nodesBuffer);
 			computeShader.SetBuffer(kernelIndex, "bodies", bodiesBuffer);
 			computeShader.SetFloat("deltaTime", dt);
-			computeShader.SetInt("treeCount", treeCount);
-			computeShader.SetInt("treeSize", treeSize);
-			computeShader.Dispatch(kernelIndex, bodies.Length / 64, 1, 1);
 
+			watch.Stop();
+			copyMs += watch.ElapsedMilliseconds;
+			watch.Reset();
+
+			watch.Start();
+
+			computeShader.Dispatch(kernelIndex, bodies.Length / 64, 1, 1);
 
 			//lots of weird stuff going on here to avoid a unity bug https://forum.unity.com/threads/asyncgpureadback-requestintonativearray-causes-invalidoperationexception-on-nativearray.1011955/
 			var taskCompletionSource = new TaskCompletionSource<AsyncGPUReadbackRequest>();
@@ -257,64 +220,19 @@ namespace nbody
 			AsyncGPUReadback.RequestIntoNativeArray(ref tempArray, bodiesBuffer, (req) => taskCompletionSource.SetResult(req));
 			await taskCompletionSource.Task;
 			nodesBuffer.Release();
+
+			watch.Stop();
+			shaderMs += watch.ElapsedMilliseconds;
+			watch.Reset();
+
 			return tempArray;
 		}
-		//private async Task Update(CancellationToken token)
-		//{
-		//	while (!token.IsCancellationRequested)
-		//	{
-		//		var deltaTime = Time.DeltaTime;
-		//		var result = await RunComputeShader(deltaTime);
-		//		bodies.Dispose();
-		//		bodies = new NativeArray<Body>(result, Allocator.Persistent);
-		//		result.Dispose();
-		//		updated = true;
-		//		await Task.Yield();
-		//	}
-		//}
-		//private async Task<NativeArray<Body>> RunComputeShader(float dt)
-		//{
-		//	var computeShader = ComputeShaderTest.Instance.computeShader;
-		//	computeShader.SetBuffer(0, "bodies", bodiesBuffer);
-		//	computeShader.SetFloat("deltaTime", dt);
-		//	computeShader.SetInt("bodyCount", bodies.Length);
-		//	computeShader.Dispatch(0, bodies.Length / 256, 1, 1);
-
-		//	//lots of weird stuff going on here to avoid a unity bug https://forum.unity.com/threads/asyncgpureadback-requestintonativearray-causes-invalidoperationexception-on-nativearray.1011955/
-		//	var taskCompletionSource = new TaskCompletionSource<AsyncGPUReadbackRequest>();
-		//	var tempArray = new NativeArray<Body>(bodies.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-		//	AsyncGPUReadback.RequestIntoNativeArray(ref tempArray, bodiesBuffer, (req) => taskCompletionSource.SetResult(req));
-		//	await taskCompletionSource.Task;
-		//	return tempArray;
-		//}
 		protected override void OnUpdate()
 		{
-			var query = GetEntityQuery(typeof(BodyTag));
-			//if (bodies != null && bodies.IsCreated)
-			//	bodies.Dispose();
-			//bodies = query.ToComponentDataArray<Body>(Allocator.Persistent);
-			//var blength = bodies.Length;
-
-			//var bounds = new Bounds { min = new float3(1000, 1000, 1000), max = new float3(-1000, -1000, -1000) };
-			//for (int i = 0; i < blength; i++)
-			//{
-			//	Utils.GetLimit(ref bounds.min, ref bounds.max, bodies[i].position);
-			//}
-			//var nodes = new NativeArray<LinearOctNode>(2000000, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			//var generateTree = new GenerateTree()
-			//{
-			//	bodies = bodies,
-			//	bounds = bounds,
-			//	nodes = nodes,
-			//	current = 0,
-			//};
-			//generateTree.Execute();
-
-			//bodiesData.Dispose();
-			//nodes.Dispose();
 			if (!updated)
 				return;
-			var attractAndMoveJob = new AttractAndMove()
+			var query = GetEntityQuery(typeof(BodyTag));
+			var attractAndMoveJob = new DisplayBodies()
 			{
 				transformHandle = GetComponentTypeHandle<LocalToWorld>(false),
 				bd = bodies

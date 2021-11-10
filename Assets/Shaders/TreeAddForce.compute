@@ -1,6 +1,5 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSApplyForces
-#pragma kernel CSGenerateTree
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 #define EPSILON 0.00001f
@@ -25,19 +24,17 @@ struct LinearOctNode
     int type;
     int childsStartIndex;
 };
-RWStructuredBuffer<LinearOctNode> nodes;
+StructuredBuffer<LinearOctNode> nodes;
 RWStructuredBuffer<Body> bodies;
 float deltaTime;
-int treeCount;
-int treeSize;
 
-float3 Interact(int startIndex, float3 position)
+float3 Interact(float3 position)
 {
     float deltaForce = GRAVITY * deltaTime;
     float3 addedVelocity = float3(0,0,0);
     int stack[200];
     int count = 1;
-    stack[0] = startIndex;
+    stack[0] = 0;
     while(count > 0) {
         int index = stack[--count];
         LinearOctNode node = nodes[index];
@@ -67,22 +64,7 @@ float3 Interact(int startIndex, float3 position)
 void CSApplyForces (uint3 id : SV_DispatchThreadID)
 {
     Body body = bodies[id.x];
-    float3 addedVelocity = float3(0,0,0);
-    for(int i = 0; i < treeCount; i++) {
-        addedVelocity += Interact(i * treeSize, body.position);
-    }
-    body.position += (body.velocity + addedVelocity * 0.5f) * deltaTime;
-    body.velocity += addedVelocity;
-    bodies[id.x] = body;
-}
-[numthreads(4,1,1)]
-void CSGenerateTree (uint3 id : SV_DispatchThreadID)
-{
-    Body body = bodies[id.x];
-    float3 addedVelocity = float3(0,0,0);
-    for(int i = 0; i < treeCount; i++) {
-        addedVelocity += Interact(i * treeSize, body.position);
-    }
+    float3 addedVelocity = Interact(body.position);
     body.position += (body.velocity + addedVelocity * 0.5f) * deltaTime;
     body.velocity += addedVelocity;
     bodies[id.x] = body;

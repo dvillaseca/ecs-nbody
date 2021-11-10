@@ -168,10 +168,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   option: 1
   prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
-  count: 100096
-  explosionForce: 0.5
-  diskRadius: 2
-  diskSpeed: 100
+  count: 200000
+  explosionForce: 1
+  diskRadius: 10
+  diskSpeed: 200
   massRange: {x: 5, y: 15}
 --- !u!4 &1737140761
 Transform:

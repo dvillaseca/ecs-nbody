@@ -16,6 +16,7 @@ namespace nbody
 		public NativeList<Body>.ParallelWriter b6;
 		public NativeList<Body>.ParallelWriter b7;
 		[ReadOnly]
+		[Unity.Collections.LowLevel.Unsafe.NativeDisableContainerSafetyRestriction]
 		public NativeArray<Body> bodies;
 		[ReadOnly]
 		public NativeArray<Bounds> bounds;

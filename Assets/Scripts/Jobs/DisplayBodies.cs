@@ -10,6 +10,7 @@ namespace nbody
 	{
 		public ComponentTypeHandle<LocalToWorld> transformHandle;
 		[ReadOnly]
+		[Unity.Collections.LowLevel.Unsafe.NativeDisableContainerSafetyRestriction]
 		public NativeArray<Body> bd;
 		[ReadOnly]
 		public float deltaTime;

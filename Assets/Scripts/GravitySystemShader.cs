@@ -11,6 +11,7 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace nbody
 {
+	[DisableAutoCreation]
 	public class GravitySystemShader : SystemBase
 	{
 		private NativeArray<Body> bodies;
@@ -171,10 +172,10 @@ namespace nbody
 				watch.Reset();
 
 				var deltaTime = Time.DeltaTime;
-				var result = await RunComputeShader(deltaTime);
-				bodies.Dispose();
-				bodies = new NativeArray<Body>(result, Allocator.Persistent);
-				result.Dispose();
+				await RunComputeShader(.1f);
+				//bodies.Dispose();
+				//bodies = new NativeArray<Body>(result, Allocator.Persistent);
+				//result.Dispose();
 				updated = true;
 
 				sampleCount++;
@@ -192,7 +193,7 @@ namespace nbody
 			}
 			DisposeAll();
 		}
-		private async Task<NativeArray<Body>> RunComputeShader(float dt)
+		private async Task RunComputeShader(float dt)
 		{
 			watch.Start();
 			var computeShader = ComputeShaderTest.Instance.computeShaderTree;
@@ -216,16 +217,14 @@ namespace nbody
 
 			//lots of weird stuff going on here to avoid a unity bug https://forum.unity.com/threads/asyncgpureadback-requestintonativearray-causes-invalidoperationexception-on-nativearray.1011955/
 			var taskCompletionSource = new TaskCompletionSource<AsyncGPUReadbackRequest>();
-			var tempArray = new NativeArray<Body>(bodies.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-			AsyncGPUReadback.RequestIntoNativeArray(ref tempArray, bodiesBuffer, (req) => taskCompletionSource.SetResult(req));
+			//var tempArray = new NativeArray<Body>(bodies.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+			AsyncGPUReadback.RequestIntoNativeArray(ref bodies, bodiesBuffer, (req) => taskCompletionSource.SetResult(req));
 			await taskCompletionSource.Task;
 			nodesBuffer.Release();
 
 			watch.Stop();
 			shaderMs += watch.ElapsedMilliseconds;
 			watch.Reset();
-
-			return tempArray;
 		}
 		protected override void OnUpdate()
 		{

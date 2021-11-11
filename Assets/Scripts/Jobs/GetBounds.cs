@@ -15,6 +15,7 @@ namespace nbody
 	{
 		public NativeQueue<Bounds>.ParallelWriter bounds;
 		[ReadOnly]
+		[Unity.Collections.LowLevel.Unsafe.NativeDisableContainerSafetyRestriction]
 		public NativeArray<Body> bodies;
 		[ReadOnly]
 		public int limit;

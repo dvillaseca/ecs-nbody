@@ -8,9 +8,10 @@ namespace nbody
 	[Unity.Burst.BurstCompile]
 	public struct GenerateTreePart : IJob
 	{
-		[NativeDisableContainerSafetyRestriction]
+		[Unity.Collections.LowLevel.Unsafe.NativeDisableContainerSafetyRestriction]
 		public NativeArray<LinearOctNode> nodes;
 		[ReadOnly]
+		[Unity.Collections.LowLevel.Unsafe.NativeDisableContainerSafetyRestriction]
 		public NativeArray<Body> bodies;
 		[ReadOnly]
 		public NativeArray<Bounds> bounds;

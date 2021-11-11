@@ -168,7 +168,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   option: 1
   prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
-  count: 200000
+  count: 100000
   explosionForce: 0.85
   diskRadius: 10
   diskSpeed: 200

@@ -1,0 +1,40 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Prev;
+RWTexture2D<float4> Result;
+float4 resolution;
+float time;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    int numAlive = 0;
+    for(int x = -1; x <= 1; x++) {
+        for(int y = -1; y <= 1; y++) {
+            if(x == 0 && y == 0)
+                continue;
+            int2 index = int2(id.x + x, id.y + y);
+            if(index.x >= resolution.x)
+               index.x -= resolution.x;
+            if(index.y >= resolution.y)
+               index.y -= resolution.y;
+            if(index.x < 0)
+               index.x += resolution.x;
+            if(index.y < 0)
+               index.y += resolution.y;
+            if(Prev[index].x > 0.5f)
+                numAlive++;
+        }
+    }
+    float alive = Prev[id.xy].x;
+    if(alive > 0.5f && (numAlive == 2 || numAlive == 3))
+       alive = 1.0f;
+    else if(alive < .5f && numAlive == 3)
+       alive = 1.0f;
+    else
+       alive = 0.0f;
+    Result[id.xy] = float4(alive,alive,alive,alive);
+}

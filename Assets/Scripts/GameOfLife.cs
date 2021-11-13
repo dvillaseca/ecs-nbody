@@ -44,7 +44,7 @@ public class GameOfLife : MonoBehaviour
 	}
 	private void OnRenderImage(RenderTexture src, RenderTexture dest)
 	{
-		Graphics.Blit(rt1, null as RenderTexture);
+		Graphics.Blit(twoIsTarget ? rt2 : rt1, null as RenderTexture);
 	}
 
 	// Update is called once per frame

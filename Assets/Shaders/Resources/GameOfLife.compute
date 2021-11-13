@@ -11,7 +11,7 @@ float time;
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    int numAlive = 0;
+    int neighborAlive = 0;
     for(int x = -1; x <= 1; x++) {
         for(int y = -1; y <= 1; y++) {
             if(x == 0 && y == 0)
@@ -26,13 +26,11 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             if(index.y < 0)
                index.y += resolution.y;
             if(Prev[index].x > 0.5f)
-                numAlive++;
+                neighborAlive++;
         }
     }
     float alive = Prev[id.xy].x;
-    if(alive > 0.5f && (numAlive == 2 || numAlive == 3))
-       alive = 1.0f;
-    else if(alive < .5f && numAlive == 3)
+    if((alive > 0.5f && (neighborAlive == 2 || neighborAlive == 3)) || (alive < .5f && neighborAlive == 3))
        alive = 1.0f;
     else
        alive = 0.0f;

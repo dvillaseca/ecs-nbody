@@ -166,12 +166,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4bc87b5002b700449144db84de20f12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  option: 1
+  option: 0
   prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
   count: 100000
-  explosionForce: 0.85
-  diskRadius: 10
-  diskSpeed: 200
+  explosionForce: 0.8
+  diskRadius: 20
+  diskSpeed: 100
   massRange: {x: 5, y: 15}
 --- !u!4 &1737140761
 Transform:
@@ -198,7 +198,7 @@ GameObject:
   - component: {fileID: 1939837759}
   - component: {fileID: 1939837758}
   - component: {fileID: 1939837757}
-  - component: {fileID: 1939837756}
+  - component: {fileID: 1939837760}
   m_Layer: 0
   m_Name: Camera
   m_TagString: Untagged
@@ -206,25 +206,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1939837756
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1939837755}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6878e9f428c7e174f9988a6b89e655e1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: 433d248384622124fa40994418cf8f50, type: 3}
-  computeShaderTree: {fileID: 7200000, guid: 890e59c959ca281449b0639638b2685d, type: 3}
-  prefab: {fileID: 1336894440863773536, guid: 571a275d19f33fa418651b4ae702b5a2, type: 3}
-  count: 256000
-  startSpeed: 1
-  diameter: 1
-  bodiesTrans: []
 --- !u!81 &1939837757
 AudioListener:
   m_ObjectHideFlags: 0
@@ -242,8 +223,8 @@ Camera:
   m_GameObject: {fileID: 1939837755}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -290,3 +271,20 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1939837760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1939837755}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1f53e2d7a5812e47bfa20002d07f18f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  movementSpeed: 10
+  fastMovementSpeed: 100
+  freeLookSensitivity: 3
+  zoomSensitivity: 10
+  fastZoomSensitivity: 50

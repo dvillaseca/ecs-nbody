@@ -12,7 +12,7 @@ using Unity.Collections.LowLevel.Unsafe;
 namespace nbody
 {
 	[DisableAutoCreation]
-	public class GravitySystemShader : SystemBase
+	public class GravitySystemShaderBarnes : SystemBase
 	{
 		private NativeArray<Body> bodies;
 		private NativeArray<LinearOctNode> nodes;
@@ -20,6 +20,7 @@ namespace nbody
 		private CancellationTokenSource cancelToken;
 		private NativeQueue<Bounds> bounds;
 		private bool updated = false;
+		private ComputeShader computeShader;
 
 		protected override void OnStartRunning()
 		{
@@ -60,7 +61,9 @@ namespace nbody
 			cancelToken = new CancellationTokenSource();
 			bounds = new NativeQueue<Bounds>(Allocator.Persistent);
 			nodes = new NativeArray<LinearOctNode>(Const.TREE_SIZE * Const.TREE_COUNT, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+			computeShader = Resources.Load<ComputeShader>("AddForceBarnes");
 			_ = Update(cancelToken.Token);
+
 		}
 		protected override void OnStopRunning()
 		{
@@ -79,9 +82,9 @@ namespace nbody
 		}
 
 		int sampleCount = 0;
-		long treeMs = 0l;
-		long shaderMs = 0l;
-		long copyMs = 0l;
+		long treeMs = 0L;
+		long shaderMs = 0L;
+		long copyMs = 0L;
 		System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
 		private async Task Update(CancellationToken token)
 		{
@@ -196,8 +199,6 @@ namespace nbody
 		private async Task RunComputeShader(float dt)
 		{
 			watch.Start();
-			var computeShader = ComputeShaderTest.Instance.computeShaderTree;
-
 			var kernelIndex = computeShader.FindKernel("CSApplyForces");
 			var nodeSize = sizeof(float) * 10 + sizeof(int) * 2;
 			ComputeBuffer nodesBuffer = new ComputeBuffer(nodes.Length, nodeSize);

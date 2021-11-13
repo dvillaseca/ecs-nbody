@@ -11,19 +11,7 @@ struct Body
     float3 position;
 };
 RWStructuredBuffer<Body> bodies;
-// struct LinearOctNode
-// {
-    //     float3 avgPos;
-    //     float avgMass;
-    //     float3 center;
-    //     float size;
-    //     float sSize;
-    //     float bodySize;
-    //     float3 bodyVelocity;
-    //     int type;
-    //     int childsStartIndex;
-// };
-// RWStructuredBuffer<LinearOctNode> nodes;
+
 #define GRAVITY 0.0000667408f
 int bodyCount;
 float deltaTime;

@@ -11,6 +11,7 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace nbody
 {
+	[DisableAutoCreation]
 	public class GravitySystemV2 : SystemBase
 	{
 		private NativeArray<Body> bodies;
@@ -41,7 +42,7 @@ namespace nbody
 						break;
 					case EntitySpawnData.EmitOption.disk:
 
-						pos.y *= spawnData.diskRadius * 0.5f;
+						pos.y *= spawnData.diskRadius * 0.3f;
 						pos.x *= spawnData.diskRadius;
 						pos.z *= spawnData.diskRadius;
 

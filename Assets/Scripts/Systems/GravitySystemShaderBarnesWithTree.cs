@@ -10,7 +10,7 @@
 
 //namespace nbody
 //{
-//	public class GravitySystemShader : SystemBase
+//	public class GravitySystemShaderBarnesWithTree : SystemBase
 //	{
 //		private NativeArray<Body> bodies;
 //		private ComputeBuffer bodiesBuffer;

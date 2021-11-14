@@ -52,19 +52,15 @@ public class GOLPattern : ScriptableObject
 
 		var potResolution = resolution;
 
-		var potBase = 1;
-		while (Mathf.Pow(8, potBase) < potResolution.x)
+		while (potResolution.x % 8 != 0)
 		{
-			potBase++;
+			potResolution.x++;
 		}
-		potResolution.x = (int)Mathf.Pow(8, potBase);
+		while (potResolution.y % 8 != 0)
+		{
+			potResolution.y++;
+		}
 
-		potBase = 1;
-		while (Mathf.Pow(8, potBase) < potResolution.y)
-		{
-			potBase++;
-		}
-		potResolution.y = (int)Mathf.Pow(8, potBase);
 		if (textureResolution.x != 0 || textureResolution.y != 0)
 			potResolution = textureResolution;
 		Debug.Log(potResolution);

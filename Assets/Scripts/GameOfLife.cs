@@ -4,9 +4,21 @@ using UnityEngine;
 
 public class GameOfLife : MonoBehaviour
 {
+	public enum SourceType
+	{
+		random,
+		pattern,
+		texture,
+	}
 	public Vector2Int resolution = new Vector2Int(400, 400);
 	public ComputeShader shader;
+	public SourceType sourceType;
 	public int frameRate = 0;
+	public float perlinSeedMagnitude = .1f;
+
+	public Texture2D sourceTexture;
+	public GOLPattern sourcePattern;
+
 
 	private RenderTexture rt1;
 	private RenderTexture rt2;
@@ -16,6 +28,25 @@ public class GameOfLife : MonoBehaviour
 	{
 		Application.targetFrameRate = frameRate;
 
+		switch (sourceType)
+		{
+			case SourceType.random:
+				Texture2D src = new Texture2D(resolution.x, resolution.y);
+				var r1 = Random.value * perlinSeedMagnitude;
+				var r2 = Random.value * perlinSeedMagnitude;
+				for (int i = 0; i < resolution.x; i++)
+					for (int j = 0; j < resolution.y; j++)
+						src.SetPixel(i, j, new Color(Mathf.PerlinNoise(i * r1, j * r2), 1, 1));
+				src.Apply();
+				sourceTexture = src;
+				break;
+			case SourceType.pattern:
+				sourceTexture = sourcePattern.GetTexture();
+				break;
+		}
+
+		resolution = new Vector2Int(sourceTexture.width, sourceTexture.height);
+
 		rt1 = new RenderTexture(resolution.x, resolution.y, 24);
 		rt1.antiAliasing = 1;
 		rt1.enableRandomWrite = true;
@@ -24,18 +55,9 @@ public class GameOfLife : MonoBehaviour
 		rt2.antiAliasing = 1;
 		rt2.enableRandomWrite = true;
 
-		Texture2D src = new Texture2D(resolution.x, resolution.y);
-		var r1 = Random.value * 1000;
-		var r2 = Random.value * 1000;
-		for (int i = 0; i < resolution.x; i++)
-			for (int j = 0; j < resolution.y; j++)
-				src.SetPixel(i, j, new Color(Mathf.PerlinNoise(i * r1, j * r2), 1, 1));
-		src.Apply();
-		//RenderTexture.active = rt2;
-		Graphics.Blit(src, rt2);
-		//RenderTexture.active = null;
-		//shader.SetTexture(0, "Result", rt);
-		//	GetComponent<Camera>().targetTexture = rt;
+		Graphics.Blit(sourceTexture, rt2);
+		//	twoIsTarget = true;
+
 	}
 	private void OnDestroy()
 	{

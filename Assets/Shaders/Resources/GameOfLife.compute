@@ -7,32 +7,44 @@ RWTexture2D<float4> Prev;
 RWTexture2D<float4> Result;
 float4 resolution;
 float time;
-
+int IsNeighborAlive(int2 index) {
+   if(index.x < 0)
+      return 0;
+   if(index.y < 0)
+      return 0;
+   if(index.x >= resolution.x)
+      return 0;
+   if(index.y >= resolution.y)
+      return 0;
+   // index.x %= resolution.x;
+   // index.y %= resolution.y;   
+   // if(index.x < 0) {
+   //    index.x += resolution.x;
+   // }
+   // if(index.y < 0) {
+   //    index.y += resolution.y;
+   // }
+   return Prev[index].x > 0.5f ? 1 : 0;
+}
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    int neighborAlive = 0;
-    for(int x = -1; x <= 1; x++) {
-        for(int y = -1; y <= 1; y++) {
-            if(x == 0 && y == 0)
-                continue;
-            int2 index = int2(id.x + x, id.y + y);
-            if(index.x >= resolution.x)
-               index.x -= resolution.x;
-            if(index.y >= resolution.y)
-               index.y -= resolution.y;
-            if(index.x < 0)
-               index.x += resolution.x;
-            if(index.y < 0)
-               index.y += resolution.y;
-            if(Prev[index].x > 0.5f)
-                neighborAlive++;
-        }
-    }
-    float alive = Prev[id.xy].x;
-    if((alive > 0.5f && (neighborAlive == 2 || neighborAlive == 3)) || (alive < .5f && neighborAlive == 3))
-       alive = 1.0f;
-    else
-       alive = 0.0f;
-    Result[id.xy] = float4(alive,alive,alive,alive);
+   int neighborAlive = 0;
+   neighborAlive += IsNeighborAlive(id.xy + int2(-1,-1));
+   neighborAlive += IsNeighborAlive(id.xy + int2(-1, 0));
+   neighborAlive += IsNeighborAlive(id.xy + int2(-1, 1));
+   neighborAlive += IsNeighborAlive(id.xy + int2(0, -1));
+   neighborAlive += IsNeighborAlive(id.xy + int2(0, 1));
+   neighborAlive += IsNeighborAlive(id.xy + int2(1, -1));
+   neighborAlive += IsNeighborAlive(id.xy + int2(1, 0));
+   neighborAlive += IsNeighborAlive(id.xy + int2(1, 1));
+
+   float alive = Prev[id.xy].x;
+   if((alive > 0.5f && (neighborAlive == 2 || neighborAlive == 3)) || (alive < .5f && neighborAlive == 3)) {
+      alive = 1.0f;
+   }
+   else {
+      alive = 0.0f;
+   }
+   Result[id.xy] = float4(alive,alive,alive,alive);
 }

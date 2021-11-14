@@ -155,7 +155,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   resolution: {x: 128, y: 128}
   shader: {fileID: 7200000, guid: a09833b51f8d46a48a73b77ab1e2317a, type: 3}
-  frameRate: 24
+  sourceType: 1
+  frameRate: 30
+  perlinSeedMagnitude: 0.05
+  sourceTexture: {fileID: 2800000, guid: 455b84aba96894d459b6f21f39b194b6, type: 3}
+  sourcePattern: {fileID: 11400000, guid: 90b35bf0017dae140a86b44b92b10428, type: 2}
 --- !u!4 &975480093
 Transform:
   m_ObjectHideFlags: 0

@@ -15,6 +15,7 @@ public class GameOfLife : MonoBehaviour
 	public SourceType sourceType;
 	public int frameRate = 0;
 	public float perlinSeedMagnitude = .1f;
+	public int iterationsPerFrame = 1;
 
 	public Texture2D sourceTexture;
 	public GOLPattern sourcePattern;
@@ -72,10 +73,13 @@ public class GameOfLife : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
-		shader.SetTexture(0, "Prev", twoIsTarget ? rt1 : rt2);
-		shader.SetTexture(0, "Result", twoIsTarget ? rt2 : rt1);
-		shader.SetVector("resolution", new Vector4(resolution.x, resolution.y, 0, 0));
-		shader.Dispatch(0, resolution.x / 8, resolution.y / 8, 1);
-		twoIsTarget = !twoIsTarget;
+		for (int i = 0; i < iterationsPerFrame; i++)
+		{
+			shader.SetTexture(0, "Prev", twoIsTarget ? rt1 : rt2);
+			shader.SetTexture(0, "Result", twoIsTarget ? rt2 : rt1);
+			shader.SetVector("resolution", new Vector4(resolution.x, resolution.y, 0, 0));
+			shader.Dispatch(0, resolution.x / 8, resolution.y / 8, 1);
+			twoIsTarget = !twoIsTarget;
+		}
 	}
 }

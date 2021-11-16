@@ -7,37 +7,21 @@ RWTexture2D<float4> Prev;
 RWTexture2D<float4> Result;
 float4 resolution;
 float time;
-int IsNeighborAlive(int2 index) {
-   if(index.x < 0)
-      return 0;
-   if(index.y < 0)
-      return 0;
-   if(index.x >= resolution.x)
-      return 0;
-   if(index.y >= resolution.y)
-      return 0;
-   // index.x %= resolution.x;
-   // index.y %= resolution.y;   
-   // if(index.x < 0) {
-   //    index.x += resolution.x;
-   // }
-   // if(index.y < 0) {
-   //    index.y += resolution.y;
-   // }
-   return Prev[index].x > 0.5f ? 1 : 0;
-}
+
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
    int neighborAlive = 0;
-   neighborAlive += IsNeighborAlive(id.xy + int2(-1,-1));
-   neighborAlive += IsNeighborAlive(id.xy + int2(-1, 0));
-   neighborAlive += IsNeighborAlive(id.xy + int2(-1, 1));
-   neighborAlive += IsNeighborAlive(id.xy + int2(0, -1));
-   neighborAlive += IsNeighborAlive(id.xy + int2(0, 1));
-   neighborAlive += IsNeighborAlive(id.xy + int2(1, -1));
-   neighborAlive += IsNeighborAlive(id.xy + int2(1, 0));
-   neighborAlive += IsNeighborAlive(id.xy + int2(1, 1));
+   if(id.x != 0 && id.y != 0 && id.x != resolution.x - 1 && id.y != resolution.y - 1) {
+      neighborAlive += Prev[id.xy + int2(-1,-1)].x;
+      neighborAlive += Prev[id.xy + int2(-1, 0)].x;
+      neighborAlive += Prev[id.xy + int2(-1, 1)].x;
+      neighborAlive += Prev[id.xy + int2(0, -1)].x;
+      neighborAlive += Prev[id.xy + int2(0, 1)].x;
+      neighborAlive += Prev[id.xy + int2(1, -1)].x;
+      neighborAlive += Prev[id.xy + int2(1, 0)].x;
+      neighborAlive += Prev[id.xy + int2(1, 1)].x;
+   }
 
    float alive = Prev[id.xy].x;
    if((alive > 0.5f && (neighborAlive == 2 || neighborAlive == 3)) || (alive < .5f && neighborAlive == 3)) {
